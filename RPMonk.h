@@ -7,42 +7,44 @@ using namespace std;
 
 struct Character
 {
-    string characterType; // A string that would be representing the character. A character could be a "Player" or a "Minion".
-    int HP; // Health points, death if 0, max HP capped to 100
+    string characterType; //Character name.
+    string characterDesc; //Character description
+    int HP; // Health points, death if 0, max HP varies between player and monsters
     int atk; //Attack damage of a character (Abbreviated as ATK Pts)
 
     Character()
     {
         characterType = "None";
-        HP = 100;
+        characterDesc = "";
+        HP = 1;
     }
 };
 
 struct Room
 {
-    Character *c; // Can host a character.
-    int RoomPosition[2]; // Position of Room on the dungeon
+    Character * c; // Character pointer to a character struct in memory.
+    int RoomPosition[2]; // Coordinates pair for room
     bool isTreasure = false; // true if treasure room
-    int isVisited = 0; // Could either be a 0 or a 1. This could be helpful when writing the search algorithm.
+    int isVisited = 0; // Could either be a 0 or a 1. Used in findRoom()
 
-    Room* North; // a pointer to adjacent Room on north.
-    Room* West;  // a pointer to adjacent Room on west.
-    Room* East;  // a pointer to adjacent Room on east.
-    Room* South; // a pointer to adjacent Room on south.
+    Room* North; // a pointer to room north of current room etc..
+    Room* West;
+    Room* East;
+    Room* South;
 
-    Room()
+    Room() //default constructor
     {
         c = NULL;
-        RoomPosition[0] = -1;
-        RoomPosition[1] = -1;
         North = NULL;
         West = NULL;
         East = NULL;
-        South = NULL;
+        South = NULL; //initially all ptrs are NULL
+        RoomPosition[0] = -1;
+        RoomPosition[1] = -1;
     }
 
-    // Links two Rooms. 1 for North. 2 for West. 3 for East. 4 for South.
-    // Directions are for the Room calling the function i.e. if direction is 1 then this means that n should be linked with North.
+    // Links two Rooms' pointers (CONNECTED ROOMS ON MOVEMENT). 1 for North. 2 for West. 3 for East. 4 for South.
+    // directions for room that calls the function i.e. if direction is 2 then this means that n should be linked with West.
     bool linkRoom(Room* n,int direction);
 };
 
@@ -51,40 +53,42 @@ class GameManager
 {
 
 private:
-    string** dungeon; // A 2d array of strings to show what a new Room will contain. format of string = Explored/Character
-    // Explored can be 0 or 1. Character can be P (player), M (minion), N (no character).
-    // Explored basically keeps track of the Rooms which have been created in the memory and using it you have to link it with the other adjacent Rooms.
-    Room* head; // Use this to find all the other Rooms in the game.
+    string** dungeon; // double ptr of string -- to store 2d array array of the entire dungeon map -- format of string = explored/character
+    // Explored can be 0 or 1. Character can be P (player), G (goblin), B(bat) etc., N (no character).
+    //Only explored rooms are present in memory.
+    Room* head; //Used in findRoom to start search for rooms.
     Room* playerRoom; // A pointer to the Room which contains the player.
 
 public:
 
-    GameManager(); // Starts the game with a Player character in the head Room and initializes the positions for player & minions on the dungeon.
+    GameManager(); // Generates entire dungeon rooms, spawns player and monsters.
 
-    ~GameManager(); // Deallocate all the dynamic memory.
+    ~GameManager(); // Destructor
 
-    bool playerMove(int direction); // Moves the player in a certain direction and changes the characterRoom and player position on dungeon accordingly.
-    // 1 for North. 2 for West. 3 for East. 4 for South
-    // it is possible that the player encounters some minion/boss and refuses to move or dies while fighting. In any case a new Room has been explored.
+    bool playerMove(int direction); // Move the player in given direction and changes the characterRoom and player position on dungeon.
+    // it is possible that the player encounters some monster, is unable to move or dies in combat, but leaves the room to be explored.
+
     void findRoom(Room*& temp, Room* calling, int position[2], int direction); // Write an algorithm to find the Room with position equal to the input position. You have to write a recursive algorithm
     // for it and then save its address in the temp Room. To be used in playerMove
     // direction from which it is being called.
     // 0 for head. 1 for North. 2 for West. 3 for East. 4 for South.
 
-    bool fight(Room* enemyRoom); // Use this function in playerMove to fight the boss or a minion. Returns true if the player has defeated the enemy (Make sure you NULL enemyRoom.c if enemy character loses)
-    // DO NOT NULL characterRoom.c (Once a player has died the game would end and died player remains in that place)
-    void showEnemy (Room* enemyRoom); // Shows the health and inventory of opposing enemy. Use in fight function.
+    bool combat(Room* enemyRoom); // Used during function Returns true if the player has defeated the enemy (Make sure you NULL enemyRoom.c if enemy character loses)
+
+    void viewEnemyStatus(Room* enemyRoom); // Shows the health and inventory of opposing enemy. Use in combat function.
 
     void useMove(Room* character,int choice, int atk); // Uses the move.
 
     void printDungeon(); // Print the dungeon discovered by the monk.
     // Call this function everytime playerMove is called just before returning from the function.
 
-    void showPlayerStatus(); // Displays the player health and inventory. Can be used in fight.
+    void viewPlayerStatus(); // Displays the player health and inventory. Can be used in combat.
 
     bool isPlayerAlive(); // Returns if player is alive or not
 
-    void healOutside(); //heal player outside fights by the healFactor given
+    void healOutside(); //heal player outside combats by the healFactor given
+
+    void overwriteMonkData(string monkName, string monkDesc); //overwrite monk data
 };
 
 #endif

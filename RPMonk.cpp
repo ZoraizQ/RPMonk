@@ -6,34 +6,56 @@
 #include <ctime>
 #include <string>
 #include <vector>
+#include <algorithm>
 #include <windows.h>
 #include "RPMonk.h"
 
 using namespace std;
 
-const int const_p_maxHP = 100;
-const int const_p_ATK = 15;
+//Monk player
+const int const_p_maxHP = 15;
+const int const_p_ATK = 3;
 const int const_p_healFactor = 5;
-const int const_m_maxHP = 100;
-const int const_m_ATK = 20;
+
+//Goblin
+const int const_g_maxHP = 10;
+const int const_g_ATK = 2;
+
+//Bat
+const int const_b_maxHP = 5;
+const int const_b_ATK = 1;
+
+//Max map size
 const int const_n = 5;
-const string const_p_Name = "Player Monk";
-const string const_m_Name = "Monster";
+
+//Relative dungeon length
+const int dung_max = 10;
+
+string p_Name = "";
+string p_Desc = "";
+string g_Name = "Goblin";
+string g_Desc = "Green monsters possessing daggers.";
+string b_Name = "Bat";
+string b_Desc = "Bats are mammals of the order Chiroptera.";
 
 struct coord{
     int x;
     int y;
 };
 
+void GameManager::overwriteMonkData(string monkName, string monkDesc){
+    playerRoom->c->characterType = monkName;
+    playerRoom->c->characterDesc = monkDesc;
+}
+
 void setConsoleColour(int colour)
 {
     HANDLE hOut = GetStdHandle(STD_OUTPUT_HANDLE);
-    cout.flush(); //To ensure that the active screen buffer is cleared and the characters are written to their destination.
+    cout.flush();
     SetConsoleTextAttribute(hOut, colour);
-    //Sets the console text color attribute to specified 'colour' value.
 }
 
-coord updateCoordWithDirection(int direction, coord old_coord){
+coord updateCoordWithDirection(int direction, coord old_coord){ // calculates new coordinates from old coordinates by arithmetic according to the direction given (one step ahead)
     coord new_coord;
     switch(direction)
     {
@@ -57,30 +79,13 @@ coord updateCoordWithDirection(int direction, coord old_coord){
     return new_coord;
 }
 
-bool isInCoordList(coord, vector<coord> cl){
-    for (auto i = cl.begin(); i != c1.end(); ++i){
-        if (coord != *i){
-            return false;
-        }
-    }
-    return true;
-}
 
 GameManager::GameManager()
 {
-    /*
-    //LINKED by LINK function
-    //Room is created when explored by player. So dungeon initially starts with single Room containing the player character
-    //HEAD Room - is the initially created Room by the constructor, it is just like the head of a linked list, in this case the head of this dungeon structure
-    RANDOMLY determine position on dungeon containing PLAYER, MINION
-    SINGLE Room IN THE BEGINNING - head Room points to this, player Room points to this
-    ALL OTHER positions UNEXPLORED (0), while head Room position 1
-    There is only one Room
-    */
     int n = const_n, i,j;
-    Room* newRoom = new Room();
-    Character* playerchar = new Character();
-    // nxn dungeon generated
+    Room* newRoom = new Room(); // new room created in memory
+    Character* playerchar = new Character(); //new character created in memory
+    // n x n dungeon generated
     dungeon = new string*[n];
     for (i = 0; i < n; i++)
     {
@@ -91,82 +96,106 @@ GameManager::GameManager()
     {
         for (j = 0; j < n; j++)
         {
-            dungeon[i][j] = "-/N";
+            dungeon[i][j] = "-/N"; // all slots are initialized such , - represents WALL, N represents NO CHARACTER
         }
     }
     srand(time(NULL)); //use time(NULL) as seed for random generator
 
     coord playerCoord;
-    playerCoord.x = rand()%const_n;
-    playerCoord.y = rand()%const_n;
-
-    dungeon[playerCoord.x][playerCoord.y] = "1/P";
-    //create player Room here, same as head initially
-    playerchar->characterType = const_p_Name;
+    playerCoord.x = rand()%const_n; //n = 7, 0-7
+    playerCoord.y = rand()%const_n; // 0-7
+    playerchar->characterType = p_Name; //properties to character
+    playerchar->characterDesc = p_Desc;
     playerchar->HP = const_p_maxHP;
     playerchar->atk = const_p_ATK;
-    newRoom->c = playerchar;
+    newRoom->c = playerchar; //newRoom for player
     newRoom->RoomPosition[0] = playerCoord.x;
     newRoom->RoomPosition[1] = playerCoord.y;
-    head = newRoom;
-    playerRoom = newRoom;
+    head = newRoom; //player's room is the head
+    playerRoom = newRoom; //member variable
 
-    vector<coord> free_rooms;
+    coord current_coord = playerCoord;
     //player room NOT added to the list of existing rooms
 
-    GENERATE_NEW_COORD:
-    randDir = (rand()% 4) + 1
-    new_coord = updateCoordWithDirection(randDir, current_coord);
-    if (new_coord.x >= const_n || new_coord.x < 0 || new_coord.y >= const_n || new_coord.y < 0)
+    int numberOfRooms = rand()%5+dung_max; //numberOfRooms
+    cout << "Generating rooms...";
+    coord new_coord;
+    int timeout = 20;
+    while(numberOfRooms != 0){
+        GENERATE_NEW_COORD:
+        int randDir = (rand()%4) + 1;
+        new_coord = updateCoordWithDirection(randDir, current_coord);
+        i = new_coord.x;
+        j = new_coord.y;
+        if (i >= const_n || i < 0 || j >= const_n || j < 0 || dungeon[i][j][0] == '0'){    //generate again.
+            goto GENERATE_NEW_COORD;
+        }
+        dungeon[i][j][0] = '0';
+        current_coord = new_coord;
+
+        //cout << "Room generated at " << new_coord.x << ',' <<  new_coord.y << endl;
+        //cout << numberOfRooms << endl;
+        numberOfRooms--;
+        timeout--;
+        if (timeout == 0)
+            break;
+    }
+
+    //spawns player at playerCoord by just editing the dungeon string
+    dungeon[playerCoord.x][playerCoord.y] = "1/P"; //add the player in the end so it does not get overwritten by a 0
+
+    int task = 0;
+    while(task != 3)
     {
-        //generate again.
-        goto GENERATE_NEW_COORD;
+        G2:
+        i = rand()%const_n;
+        j = rand()%const_n;
+        if (i >= const_n || i < 0 || j >= const_n || j < 0)
+        {   //generate again.
+            goto G2;
+        }
+        //since tasks 0 to 5 are characters, they can stand over items as well, so from tasks 6 onwards we only check if there is an empty item node for the items except that of the Boss
+        if (dungeon[i][j][0] == '0')  //separate conditions for character and item tasks
+        {
+            switch(task)
+            {
+            case 0: //task 0 - - assign goblin
+                dungeon[i][j] = "0/G";
+                break;
+            case 1:
+                dungeon[i][j] = "0/B"; // assign bat
+                break;
+            case 2:
+                dungeon[i][j] += "T"; // assign treasure room
+                break;
+            }
+            task++;
+        }
     }
-    free_rooms.push_back(new_coord);
-    dungeon[new_coord.x][new_coord.y][0] = '0';
-
-    coord monster_coord;
-    monster_coord.x = rand()%const_n;
-    monster_coord.y = rand()%const_n;
-    while (!isInCoordList(monster_coord, free_rooms)){
-        monster_coord.x = rand()%const_n;
-        monster_coord.y = rand()%const_n;
-    }
-    dungeon[monster_coord.x][monster_coord.y] = "0/M"; // monster 1
-
-    coord treasure_coord;
-    treasure_coord.x = rand()%const_n;
-    treasure_coord.y = rand()%const_n;
-    while (!isInCoordList(treasure_coord, free_rooms)){
-        treasure_coord.x = rand()%const_n;
-        treasure_coord.y = rand()%const_n;
-    }
-    dungeon[treasure_coord.x]treasure_coord.y] += "$"; //to signify a treasure room
 }
 
 GameManager::~GameManager()
-{
-    int pos[2];
-    //delete all existing Rooms and their contents by finding their address using findRoom
+{     //delete all existing Rooms and their contents by finding their address using findRoom
+    int p[2];
     for (int i = 0; i < const_n; i++)
     {
         for (int j = 0; j < const_n; j++)
         {
             if (dungeon[i][j][0] == '1')
             {
-                pos[0] = i;
-                pos[1] = j;
-                Room* delRoom;
-                findRoom(delRoom, head, pos, 0);
-                if (delRoom != NULL)
+                p[0] = i;
+                p[1] = j;
+                Room* del;
+                findRoom(del, head, p, 0);
+                if (del != NULL)
                 {
-                    //delRoom now contains the Room to be deleted
-                    if (delRoom->c != NULL)
+                    //del now contains the Room to be deleted
+                    if (del->c != NULL)
                     {
-                        delete delRoom->c;
-                        delRoom->c = NULL;
+                        delete del->c;
+                        del->c = NULL;
                     }
-                    delete delRoom;
+                    delete del;
                 }
             }
         }
@@ -183,14 +212,14 @@ GameManager::~GameManager()
     dungeon = NULL;
 }
 
-void GameManager::showEnemy (Room* enemyRoom)
+void GameManager::viewEnemyStatus(Room* enemyRoom)
 {
     cout << "\n[Enemy Status]\nEnemy: " << enemyRoom->c->characterType << "\nHP: "<< enemyRoom->c->HP << '\n';
 }
 
 
 void GameManager::printDungeon()
-{
+{ //2d dungeon array of strings print with colors
     setConsoleColour(15);
 
     for (int i = 0; i < const_n; i++)
@@ -200,8 +229,20 @@ void GameManager::printDungeon()
             setConsoleColour(8);
             if (dungeon[i][j][0] == '1') setConsoleColour(2);
             if (dungeon[i][j][2] == 'P') setConsoleColour(10);
-            if (dungeon[i][j][2] == 'M') setConsoleColour(4);
-            cout << dungeon[i][j].substr(0,5) << "     ";
+            if (dungeon[i][j][2] == 'G' || dungeon[i][j][2] == 'B') setConsoleColour(4);
+            if (dungeon[i][j][0] == '-'){
+              setConsoleColour(3);
+            cout << "WWW      ";
+            }
+            else{
+            cout << dungeon[i][j];
+            if (dungeon[i][j].length() > 3){
+                cout << "     ";
+            }
+            else{
+                cout << "      ";
+            }
+            }
         }
         cout << endl;
     }
@@ -214,9 +255,9 @@ bool GameManager::isPlayerAlive()
     else return true;
 }
 
-void GameManager::showPlayerStatus()
+void GameManager::viewPlayerStatus()
 {
-    cout << "\n[Player Status]" << "\nHP: " << playerRoom->c->HP << '\n';
+    cout << "\n[Player Status]\nPlayer: " << playerRoom->c->characterType << "\nHP: "<< playerRoom->c->HP << '\n' << playerRoom->c->characterDesc << '\n';
 }
 
 bool Room::linkRoom(Room* n, int direction)
@@ -302,7 +343,7 @@ bool GameManager::playerMove(int direction)
     if (currDungeonStr[0] == '0')
     {
         //create a Room if it does not exists
-        dungeon[nx][ny][0] = '1'; //updated dungeon string to explored
+        dungeon[nx][ny][0] = '1'; //change dungeon string to explored
         nextRoom = new Room;
         nextRoom->RoomPosition[0] = nx;
         nextRoom->RoomPosition[1] = ny;
@@ -317,18 +358,27 @@ bool GameManager::playerMove(int direction)
             //no character here, proceed to move
             nextChar = NULL;
             break;
-        case 'M':
-            //creating a Monster Character
+        case 'G':
+            //creating a GOBLIN Monster Character
             nextChar = new Character;
-            nextChar->characterType = const_m_Name;
-            nextChar->HP = const_m_maxHP;
-            nextChar->atk = const_m_ATK;
+            nextChar->characterType = g_Name;
+            nextChar->characterDesc = g_Desc;
+            nextChar->HP = const_g_maxHP;
+            nextChar->atk = const_g_ATK;
+            break;
+        case 'B':
+            //creating a BAT Monster Character
+            nextChar = new Character;
+            nextChar->characterType = b_Name;
+            nextChar->characterDesc = b_Desc;
+            nextChar->HP = const_b_maxHP;
+            nextChar->atk = const_b_ATK;
             break;
         }
-        //insert this character into the nextRoom's character spot
+        //place this character into the nextRoom's character ptr
         nextRoom->c = nextChar;
 
-        nextRoom->linkRoom(nextRoom->North, 1);
+        nextRoom->linkRoom(nextRoom->North, 1); //link this new room with every side
         nextRoom->linkRoom(nextRoom->East, 3);
         nextRoom->linkRoom(nextRoom->West, 2);
         nextRoom->linkRoom(nextRoom->South, 4);
@@ -341,11 +391,11 @@ bool GameManager::playerMove(int direction)
     }
     else
     {
-        //Room exists
+        //if room exists, then FIND IT and get its ROOM* ptr
         int pos[2];
         pos[0] = nx;
         pos[1] = ny;
-        findRoom(nextRoom,head,pos,direction);
+        findRoom(nextRoom,head,pos,direction); //gets ptr to existing room
         //nextRoom now contains the Room we're headed towards as it exists
     }
     //the Room should now exist in either cases
@@ -363,14 +413,14 @@ bool GameManager::playerMove(int direction)
     else
     {
         int choice;
-        showEnemy(nextRoom);
-        cout << "\nWould you like to initiate fight or flee?\n1. Fight\n2. Flee\n";
+        viewEnemyStatus(nextRoom);
+        cout << "\nWould you like to initiate combat or flee?\n1. Fight\n2. Flee\n";
         cin >> choice;
         if (choice == 1)
         {
-            if (fight(nextRoom) == true)
+            if (combat(nextRoom) == true)
             {
-                cout << "You won the fight!\n";
+                cout << "You won the combat!\n";
                 dungeon[playerRoom->RoomPosition[0]][playerRoom->RoomPosition[1]][2] = 'N';
                 dungeon[nx][ny][2] = 'P';
                 delete nextRoom->c; //clear previous character
@@ -379,7 +429,7 @@ bool GameManager::playerMove(int direction)
             }
             else
             {
-                cout << "You lost the fight.\n";
+                cout << "You lost the combat.\n";
                 return false;
             }
         }
@@ -399,16 +449,17 @@ bool GameManager::playerMove(int direction)
     return true;
 }
 
-bool GameManager::fight(Room* enemyRoom)
+bool GameManager::combat(Room* enemyRoom)
 {
     system("cls");
     cout << "An enemy " << enemyRoom->c->characterType << " has appeared!\n";
+    cout << enemyRoom->c->characterDesc << endl;
     int playerchoice,enemychoice, movechoice;
 
-    while (true)
+    while (true) //combat loop
     {
-        showEnemy(enemyRoom);
-        showPlayerStatus();
+        viewEnemyStatus(enemyRoom);
+        viewPlayerStatus();
         if (enemyRoom->c->HP <= 0)
         {
             cout << "The enemy " << enemyRoom->c->characterType << " was defeated!\n";
@@ -417,8 +468,8 @@ bool GameManager::fight(Room* enemyRoom)
         else if (!isPlayerAlive())
             return false;
 
-//player's attack phase, enemy's defense phase
-        cout << "Prepare to attack!\n1. Attack\n2. Skip Turn\n";
+        //player's attack phase, enemy's defense phase
+        cout << "Prepare to attack!\n1. Attack\n2. Do nothing\n";
         cin >> playerchoice;
         enemychoice = rand() % 2 + 1; //1 to 2 random choice to dodge or defend
         switch(playerchoice)
@@ -436,8 +487,8 @@ bool GameManager::fight(Room* enemyRoom)
 
         system("pause");
         system("cls");
-        showEnemy(enemyRoom);
-        showPlayerStatus();
+        viewEnemyStatus(enemyRoom);
+        viewPlayerStatus();
         if (enemyRoom->c->HP <= 0)
         {
             cout << "The enemy " << enemyRoom->c->characterType << " was defeated!\n";
@@ -460,41 +511,37 @@ bool GameManager::fight(Room* enemyRoom)
         system("cls");
     }
 }
-/*
-    Room* find, (initially NULL)
+    /*
+    findRoom (initially NULL)
     Traverse structure from head temp to ALL possible Rooms RECURSIVELY, if a temp was found in the specific position (1 on the dungeon) then return the temp address (temp), else return NULL in base case if temp not found
     e.g. the address of the temp at (1,2) position would be returned to the temp find if
-    find.RoomPosition[0] = 1, find.RoomPosition[1] = 2---- if a temp exists there(edited)
-
-    if (temp == NULL){
-    return NULL;
-    }
+    find.RoomPosition[0] = 1, find.RoomPosition[1] = 2---- if a temp exists there
     */
-void GameManager::findRoom(Room*& temp, Room* calling, int position[2], int direction)
+void GameManager::findRoom(Room*& temp, Room* caller, int position[2], int direction)
 {
-    if (calling==NULL)
+    if (caller==NULL) //no room exists
     {
         return;
     }
-    else if (calling->isVisited==1)
+    else if (caller->isVisited==1) //room already visited
     {
         return;
     }
 
-    if(calling->RoomPosition[0]==position[0] && calling->RoomPosition[1]==position[1])
+    if(caller->RoomPosition[0]==position[0] && caller->RoomPosition[1]==position[1]) //room found, coordinates found
     {
-        temp = calling;
+        temp = caller;
     }
-    else
+    else //some other room found
     {
-        calling->isVisited = 1;
-        findRoom(temp,calling->North,position,direction);
-        findRoom(temp,calling->West,position,direction);
-        findRoom(temp,calling->East,position,direction);
-        findRoom(temp,calling->South,position,direction);
+        caller->isVisited = 1; //that room is now visited
+        findRoom(temp,caller->North,position,direction); //recursively go in all 4 directions
+        findRoom(temp,caller->West,position,direction);
+        findRoom(temp,caller->East,position,direction);
+        findRoom(temp,caller->South,position,direction);
     }
 
-    calling->isVisited = 0;
+    caller->isVisited = 0; //make all isVisited = 0 at the end, for the next function call of findRoom
 }
 
 void GameManager::useMove(Room* charRoom,int choice, int atk)
@@ -514,7 +561,7 @@ void GameManager::useMove(Room* charRoom,int choice, int atk)
         charRoom->c->HP -= atk; //if chance 1, then full atk, else 0 deduction - points nullified
         break;
     case 2: //defend
-        //Your chance of dodging the other players attack falls to 0% but you get half the atk of other players attack
+        //get half the atk of other players attack
         atk = 0.5*atk;
         cout << charRoom->c->characterType << " defended, was inflicted with a " << atk << " attack.\n";
         if (atk > charRoom->c->HP) atk = charRoom->c->HP;
