@@ -111,9 +111,8 @@ GameManager::GameManager()
     head = newRoom;
     playerRoom = newRoom;
 
-    vector<coord> existing_rooms;
-    existing_rooms.push_back(newRoom); //player room added to the list of existing rooms
-    current_coord = playerCoord;
+    vector<coord> free_rooms;
+    //player room NOT added to the list of existing rooms
 
     GENERATE_NEW_COORD:
     randDir = (rand()% 4) + 1
@@ -123,20 +122,22 @@ GameManager::GameManager()
         //generate again.
         goto GENERATE_NEW_COORD;
     }
+    free_rooms.push_back(new_coord);
+    dungeon[new_coord.x][new_coord.y][0] = '0';
 
     coord monster_coord;
     monster_coord.x = rand()%const_n;
     monster_coord.y = rand()%const_n;
-    while (!isInCoordList(monster_coord, existing_rooms)){
+    while (!isInCoordList(monster_coord, free_rooms)){
         monster_coord.x = rand()%const_n;
         monster_coord.y = rand()%const_n;
     }
-    dungeon[monster_coord.x][monster_coord.y] = "0/M";
+    dungeon[monster_coord.x][monster_coord.y] = "0/M"; // monster 1
 
     coord treasure_coord;
     treasure_coord.x = rand()%const_n;
     treasure_coord.y = rand()%const_n;
-    while (!isInCoordList(treasure_coord, existing_rooms)){
+    while (!isInCoordList(treasure_coord, free_rooms)){
         treasure_coord.x = rand()%const_n;
         treasure_coord.y = rand()%const_n;
     }
