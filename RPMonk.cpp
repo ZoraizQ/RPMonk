@@ -5,6 +5,7 @@
 #include <fstream>
 #include <ctime>
 #include <string>
+#include <vector>
 #include <windows.h>
 #include "RPMonk.h"
 
@@ -19,12 +20,50 @@ const int const_n = 5;
 const string const_p_Name = "Player Monk";
 const string const_m_Name = "Monster";
 
+struct coord{
+    int x;
+    int y;
+};
+
 void setConsoleColour(int colour)
 {
     HANDLE hOut = GetStdHandle(STD_OUTPUT_HANDLE);
     cout.flush(); //To ensure that the active screen buffer is cleared and the characters are written to their destination.
     SetConsoleTextAttribute(hOut, colour);
     //Sets the console text color attribute to specified 'colour' value.
+}
+
+coord updateCoordWithDirection(int direction, coord old_coord){
+    coord new_coord;
+    switch(direction)
+    {
+    case 1: //North
+        new_coord.x = old_coord.x-1;
+        new_coord.y = old_coord.y;
+        break;
+    case 2: //West
+        new_coord.x = old_coord.x;
+        new_coord.y = old_coord.y-1;
+        break;
+    case 3: //East
+        new_coord.x = old_coord.x;
+        new_coord.y = old_coord.y+1;
+        break;
+    case 4: //South
+        new_coord.x = old_coord.x+1;
+        new_coord.y = old_coord.y;
+        break;
+    }
+    return new_coord;
+}
+
+bool isInCoordList(coord, vector<coord> cl){
+    for (auto i = cl.begin(); i != c1.end(); ++i){
+        if (coord != *i){
+            return false;
+        }
+    }
+    return true;
 }
 
 GameManager::GameManager()
@@ -39,48 +78,69 @@ GameManager::GameManager()
     There is only one Room
     */
     int n = const_n, i,j;
-    Room* temp = new Room();
+    Room* newRoom = new Room();
     Character* playerchar = new Character();
-//7x7 or nxn dungeon generated
+    // nxn dungeon generated
     dungeon = new string*[n];
     for (i = 0; i < n; i++)
     {
         dungeon[i] = new string[n];
     }
-//initialized to unexplored '0', NULL 'N' no character
+    //initialized to unexplored '0', '-' for does not exist, NULL 'N' no character
     for (i = 0; i < n; i++)
     {
         for (j = 0; j < n; j++)
         {
-            dungeon[i][j] = "0/N";
+            dungeon[i][j] = "-/N";
         }
     }
     srand(time(NULL)); //use time(NULL) as seed for random generator
 
-    i = rand()%const_n;
-    j = rand()%const_n;
+    coord playerCoord;
+    playerCoord.x = rand()%const_n;
+    playerCoord.y = rand()%const_n;
 
-    dungeon[i][j] = "1/P";
+    dungeon[playerCoord.x][playerCoord.y] = "1/P";
     //create player Room here, same as head initially
     playerchar->characterType = const_p_Name;
     playerchar->HP = const_p_maxHP;
     playerchar->atk = const_p_ATK;
+    newRoom->c = playerchar;
+    newRoom->RoomPosition[0] = playerCoord.x;
+    newRoom->RoomPosition[1] = playerCoord.y;
+    head = newRoom;
+    playerRoom = newRoom;
 
-    temp->c = playerchar;
-    temp->RoomPosition[0] = i;
-    temp->RoomPosition[1] = j;
-    head = temp;
-    playerRoom = temp;
+    vector<coord> existing_rooms;
+    existing_rooms.push_back(newRoom); //player room added to the list of existing rooms
+    current_coord = playerCoord;
 
-    i = rand()%const_n;
-    j = rand()%const_n;
+    GENERATE_NEW_COORD:
+    randDir = (rand()% 4) + 1
+    new_coord = updateCoordWithDirection(randDir, current_coord);
+    if (new_coord.x >= const_n || new_coord.x < 0 || new_coord.y >= const_n || new_coord.y < 0)
+    {
+        //generate again.
+        goto GENERATE_NEW_COORD;
+    }
 
-    dungeon[i][j] = "0/M";
+    coord monster_coord;
+    monster_coord.x = rand()%const_n;
+    monster_coord.y = rand()%const_n;
+    while (!isInCoordList(monster_coord, existing_rooms)){
+        monster_coord.x = rand()%const_n;
+        monster_coord.y = rand()%const_n;
+    }
+    dungeon[monster_coord.x][monster_coord.y] = "0/M";
 
-    i = rand()%const_n;
-    j = rand()%const_n;
-    dungeon[i][j] += "$"; //to signify a treasure room
-    cout << "The treasure room will be present at " << i << "," << j << endl;
+    coord treasure_coord;
+    treasure_coord.x = rand()%const_n;
+    treasure_coord.y = rand()%const_n;
+    while (!isInCoordList(treasure_coord, existing_rooms)){
+        treasure_coord.x = rand()%const_n;
+        treasure_coord.y = rand()%const_n;
+    }
+    dungeon[treasure_coord.x]treasure_coord.y] += "$"; //to signify a treasure room
 }
 
 GameManager::~GameManager()
@@ -120,12 +180,11 @@ GameManager::~GameManager()
     }
     delete dungeon;
     dungeon = NULL;
-
 }
 
 void GameManager::showEnemy (Room* enemyRoom)
 {
-    cout << "\n[Enemy Status]" << "\nEnemy: " << enemyRoom->c->characterType << "\nHP: "<< enemyRoom->c->HP << '\n';
+    cout << "\n[Enemy Status]\nEnemy: " << enemyRoom->c->characterType << "\nHP: "<< enemyRoom->c->HP << '\n';
 }
 
 
@@ -226,15 +285,18 @@ bool GameManager::playerMove(int direction)
         break;
     }
 
-//if the position generated (nx/ny) any of them are out of bounds of the dungeon, we cannot move to this location
+    //if the position generated (nx/ny) any of them are out of bounds of the dungeon, we cannot move to this location
     if (nx >= const_n || nx < 0 || ny >= const_n || ny < 0)
     {
         cout << "Cannot move outside the dungeon.\n";
         return false;
     }
 
-//dungeon string for the nextRoom's position
+    //dungeon string for the nextRoom's position
     string currDungeonStr = dungeon[nx][ny];
+    if (currDungeonStr[0] == '-'){ //room should not exist there
+        return false;
+    }
 
     if (currDungeonStr[0] == '0')
     {
@@ -296,7 +358,6 @@ bool GameManager::playerMove(int direction)
         playerRoom->c = NULL;
         //player has moved to the next Room, so playerRoom now points to the next Room
         playerRoom = nextRoom;
-        return true;
     }
     else
     {
@@ -314,7 +375,6 @@ bool GameManager::playerMove(int direction)
                 delete nextRoom->c; //clear previous character
                 nextRoom->c = playerRoom->c;
                 playerRoom = nextRoom;
-                return true;
             }
             else
             {
@@ -335,6 +395,7 @@ bool GameManager::playerMove(int direction)
         cout << "Exiting...";
         exit(1);
     }
+    return true;
 }
 
 bool GameManager::fight(Room* enemyRoom)
